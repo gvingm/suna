@@ -200,6 +200,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
+# The `docker.io` package in this base ships the daemon but not the CLIENT
+# binary, and the local sandbox provider drives the host's Docker daemon
+# through that client (the API container talks to the host's socket). Install
+# the static client — no daemon needed, we only ever talk to the host's.
+ARG DOCKER_CLI_VERSION=27.5.1
+RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" -o /tmp/docker.tgz \
+    && tar -xzf /tmp/docker.tgz -C /tmp \
+    && mv /tmp/docker/docker /usr/local/bin/docker \
+    && chmod 0755 /usr/local/bin/docker \
+    && rm -rf /tmp/docker /tmp/docker.tgz \
+    && docker --version
+
 # License
 COPY LICENSE /LICENSE
 
