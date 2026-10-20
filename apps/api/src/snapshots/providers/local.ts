@@ -14,7 +14,8 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
+import path from 'node:path';
 import { stageRuntimeBuildContext, type StagedContext } from '../build-context';
 import type {
   BuildLogTap,
@@ -27,6 +28,21 @@ import type {
 const execFileAsync = promisify(execFile);
 const DOCKER_BIN = process.env.LOCAL_SANDBOX_DOCKER_BIN || 'docker';
 const BUILD_TIMEOUT_MS = 20 * 60 * 1000;
+
+/**
+ * Where the build context is staged so the HOST's Docker daemon can read it.
+ * This path is bind-mounted into the API container at the same location it has
+ * on the host — a staged context inside the container's own filesystem is
+ * invisible to the daemon, and the build fails with an unreadable context.
+ */
+function buildContextRoot(): string {
+  return process.env.LOCAL_SANDBOX_BUILD_CONTEXT_DIR || '/buildctx';
+}
+
+/** The composed Dockerfile's name inside the staged context. */
+function dockerfileName(ctx: StagedContext): string {
+  return path.basename(ctx.composedPath);
+}
 
 function imageTag(snapshotName: string): string {
   const prefix = process.env.LOCAL_SANDBOX_IMAGE_PREFIX || 'kortix-snapshot:';
@@ -73,10 +89,20 @@ class LocalAdapter implements SandboxProviderAdapter {
       containerRuntime: input.containerRuntime,
     });
 
+    // The build context is staged INSIDE this container, but the Docker daemon
+    // that runs the build is the HOST's — it cannot see this container's
+    // filesystem. The context therefore has to be copied onto a path the host
+    // can read: a directory bind-mounted into this container at the SAME path
+    // it has on the host.
+    const hostContextDir = path.join(buildContextRoot(), input.snapshotName);
     try {
+      await rm(hostContextDir, { recursive: true, force: true });
+      await mkdir(buildContextRoot(), { recursive: true });
+      await execFileAsync('cp', ['-a', `${ctx.contextDir}/.`, hostContextDir], { timeout: 300_000 });
+
       const { stdout, stderr } = await execFileAsync(
         DOCKER_BIN,
-        ['build', '--progress=plain', '-f', ctx.composedPath, '-t', tag, ctx.contextDir],
+        ['build', '--progress=plain', '-f', path.join(hostContextDir, dockerfileName(ctx)), '-t', tag, hostContextDir],
         { timeout: BUILD_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 },
       ).catch((err: unknown) => {
         const e = err as { stdout?: string; stderr?: string; message?: string };
@@ -84,8 +110,13 @@ class LocalAdapter implements SandboxProviderAdapter {
         for (const line of out.split('\n')) {
           if (line.trim()) tap?.onLine?.(line.trim());
         }
+        const tail = out
+          .split('\n')
+          .filter((line) => line.trim())
+          .slice(-30)
+          .join('\n');
         throw new Error(
-          `[local] snapshot build failed for ${input.snapshotName}: ${e.message ?? String(err)}`,
+          `[local] snapshot build failed for ${input.snapshotName}: ${e.message ?? String(err)}\n${tail}`,
         );
       });
 
@@ -93,13 +124,11 @@ class LocalAdapter implements SandboxProviderAdapter {
         if (line.trim()) tap?.onLine?.(line.trim());
       }
 
-      const imageId = await docker(
-        ['image', 'inspect', '--format', '{{.Id}}', tag],
-        30_000,
-      );
+      const imageId = await docker(['image', 'inspect', '--format', '{{.Id}}', tag], 30_000);
       console.info(`[snapshots] ${input.snapshotName}: built ${imageId}`);
       return { externalTemplateId: imageId };
     } finally {
+      await rm(hostContextDir, { recursive: true, force: true }).catch(() => {});
       await rm(ctx.contextDir, { recursive: true, force: true }).catch(() => {});
     }
   }
