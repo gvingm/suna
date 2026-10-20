@@ -100,12 +100,23 @@ class LocalAdapter implements SandboxProviderAdapter {
       await mkdir(buildContextRoot(), { recursive: true });
       await execFileAsync('cp', ['-a', `${ctx.contextDir}/.`, hostContextDir], { timeout: 300_000 });
 
+      // No `--progress=plain`: that flag needs the buildx plugin, which the
+      // runtime image does not carry — the legacy builder prints its steps to
+      // stdout anyway, and the flag turned every build into a CLI-level error
+      // before Docker was ever reached.
       const { stdout, stderr } = await execFileAsync(
         DOCKER_BIN,
-        ['build', '--progress=plain', '-f', path.join(hostContextDir, dockerfileName(ctx)), '-t', tag, hostContextDir],
+        ['build', '-f', path.join(hostContextDir, dockerfileName(ctx)), '-t', tag, hostContextDir],
         { timeout: BUILD_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 },
       ).catch((err: unknown) => {
-        const e = err as { stdout?: string; stderr?: string; message?: string };
+        const e = err as {
+          stdout?: string;
+          stderr?: string;
+          message?: string;
+          code?: string;
+          errno?: number;
+          signal?: string;
+        };
         const out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
         for (const line of out.split('\n')) {
           if (line.trim()) tap?.onLine?.(line.trim());
@@ -116,7 +127,8 @@ class LocalAdapter implements SandboxProviderAdapter {
           .slice(-30)
           .join('\n');
         throw new Error(
-          `[local] snapshot build failed for ${input.snapshotName}: ${e.message ?? String(err)}\n${tail}`,
+          `[local] snapshot build failed for ${input.snapshotName}: ` +
+            `${e.message ?? String(err)} (code=${e.code ?? '?'} errno=${e.errno ?? '?'} signal=${e.signal ?? '?'})\n${tail}`,
         );
       });
 
