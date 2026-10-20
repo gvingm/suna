@@ -20,7 +20,7 @@ export const SANDBOX_VERSION = process.env.SANDBOX_VERSION || 'unknown';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type SandboxProviderName = 'daytona' | 'platinum' | 'e2b';
+export type SandboxProviderName = 'daytona' | 'platinum' | 'e2b' | 'local';
 type InternalKortixEnv = 'dev' | 'staging' | 'prod' | 'preview';
 
 // ─── Zod Helpers ────────────────────────────────────────────────────────────
@@ -747,6 +747,17 @@ const envSchema = z.object({
   E2B_DOMAIN: optStrDefault('e2b.dev'),
   E2B_TEMPLATE: optStr,
 
+  // ── Local (Docker) — sandbox provisioning on this very host ───────────────
+  // The local provider runs an agent sandbox as a plain Docker container on
+  // the same machine as the API. LOCAL_SANDBOX_DOCKER_NETWORK is the Docker
+  // network the API container and the sandbox containers share — the API
+  // reaches a sandbox by its container name through Docker DNS, so the two
+  // must be on one network. LOCAL_SANDBOX_IMAGE_PREFIX prefixes the local
+  // image tag a snapshot name maps to (the image never leaves the host).
+  // The API container needs the host's Docker socket for this to work.
+  LOCAL_SANDBOX_DOCKER_NETWORK: optStr,
+  LOCAL_SANDBOX_IMAGE_PREFIX: optStrDefault('kortix-snapshot:'),
+
   // ── Sandbox Platform ──────────────────────────────────────────────────────
   // Public API base URL, without a route suffix. Auto-derived from PORT in local mode.
   KORTIX_URL: optStr,
@@ -962,6 +973,7 @@ export const KNOWN_PROVIDERS: readonly SandboxProviderName[] = [
   'daytona',
   'platinum',
   'e2b',
+  'local',
 ] as const;
 
 /**
@@ -1485,6 +1497,8 @@ export const config = {
   E2B_API_KEY: env.E2B_API_KEY,
   E2B_DOMAIN: env.E2B_DOMAIN,
   E2B_TEMPLATE: env.E2B_TEMPLATE,
+  LOCAL_SANDBOX_DOCKER_NETWORK: env.LOCAL_SANDBOX_DOCKER_NETWORK,
+  LOCAL_SANDBOX_IMAGE_PREFIX: env.LOCAL_SANDBOX_IMAGE_PREFIX,
   // ─── Sandbox Provisioning (Platform) ──────────────────────────────────────
   KORTIX_URL: env.KORTIX_URL,
   ALLOWED_SANDBOX_PROVIDERS: allowedProviders,
@@ -1626,6 +1640,10 @@ export const config = {
         return !!this.PLATINUM_API_KEY;
       case 'e2b':
         return !!this.E2B_API_KEY;
+      case 'local':
+        // No cloud credential — the local provider is configured by the Docker
+        // network it shares with the API container.
+        return !!this.LOCAL_SANDBOX_DOCKER_NETWORK;
       default: {
         const exhaustive: never = name;
         return exhaustive;

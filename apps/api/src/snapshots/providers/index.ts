@@ -11,6 +11,7 @@
 
 import { daytonaProvider } from './daytona';
 import { e2bProvider } from './e2b';
+import { localProvider } from './local';
 import { platinumProvider } from './platinum';
 
 interface SandboxResourceSpec {
@@ -160,6 +161,7 @@ const ADAPTERS = new Map<string, SandboxProviderAdapter>();
 ADAPTERS.set(daytonaProvider.id, daytonaProvider);
 ADAPTERS.set(platinumProvider.id, platinumProvider);
 ADAPTERS.set(e2bProvider.id, e2bProvider);
+ADAPTERS.set(localProvider.id, localProvider);
 
 export function getSandboxProvider(id: string): SandboxProviderAdapter {
   const adapter = ADAPTERS.get(id);

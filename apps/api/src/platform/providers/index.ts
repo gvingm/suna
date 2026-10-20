@@ -2,6 +2,7 @@ import { config } from '../../config';
 import type { ProviderName, SandboxProvider } from './contract';
 import { DaytonaProvider } from './daytona';
 import { E2BProvider } from './e2b';
+import { LocalDockerProvider } from './local';
 import { PlatinumProvider } from './platinum';
 
 export * from './contract';
@@ -32,6 +33,16 @@ export function getProvider(name: ProviderName): SandboxProvider {
         throw new Error('E2B provider requires E2B_API_KEY to be set.');
       }
       provider = new E2BProvider();
+      break;
+    case 'local':
+      // The local provider needs no cloud credential — it needs a Docker
+      // daemon the API container can reach through the host's socket.
+      if (!config.LOCAL_SANDBOX_DOCKER_NETWORK) {
+        throw new Error(
+          'Local provider requires LOCAL_SANDBOX_DOCKER_NETWORK to be set (the Docker network the API container and the sandbox containers share).',
+        );
+      }
+      provider = new LocalDockerProvider();
       break;
     default: {
       const exhaustive: never = name;

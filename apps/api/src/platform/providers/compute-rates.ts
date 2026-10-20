@@ -24,6 +24,11 @@ const PROVIDER_COMPUTE_RATE_CARDS: Record<ProviderName, ProviderComputeRateCard>
   daytona: CUSTOMER_COMPUTE_RATE_CARD,
   platinum: CUSTOMER_COMPUTE_RATE_CARD,
   e2b: CUSTOMER_COMPUTE_RATE_CARD,
+  // The local provider runs the sandbox on the operator's own hardware, so no
+  // cloud bill is ever charged — but the card stays the same so the metering
+  // path (usage rows, ledger) behaves exactly as it does for every other
+  // provider instead of diverging on a zero-rate special case.
+  local: CUSTOMER_COMPUTE_RATE_CARD,
 };
 
 export function getProviderComputeRateCard(name: ProviderName): ProviderComputeRateCard {

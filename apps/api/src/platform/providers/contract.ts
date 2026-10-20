@@ -1,6 +1,6 @@
 import { config } from '../../config';
 
-export type ProviderName = 'daytona' | 'platinum' | 'e2b';
+export type ProviderName = 'daytona' | 'platinum' | 'e2b' | 'local';
 
 export class WarmRuntimeUnavailableError extends Error {
   constructor(message: string) {

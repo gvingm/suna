@@ -17,7 +17,8 @@
  */
 import { describe, expect, test } from 'bun:test';
 
-process.env.ALLOWED_SANDBOX_PROVIDERS = 'daytona,platinum,e2b';
+process.env.ALLOWED_SANDBOX_PROVIDERS = 'daytona,platinum,e2b,local';
+process.env.LOCAL_SANDBOX_DOCKER_NETWORK = 'kortix-parity-test-net';
 process.env.DAYTONA_API_KEY = 'daytona_test_key';
 process.env.DAYTONA_SERVER_URL = 'https://app.daytona.io/api';
 process.env.DAYTONA_TARGET = 'us';
@@ -37,11 +38,11 @@ const { SANDBOX_TEMPLATE_PROVIDERS } = await import('../../snapshots/provider-co
 
 describe('sandbox provider parity across shared subsystems', () => {
   test('config.KNOWN_PROVIDERS is the single canonical provider list every other list must match', () => {
-    expect(KNOWN_PROVIDERS).toEqual(['daytona', 'platinum', 'e2b']);
+    expect(KNOWN_PROVIDERS).toEqual(['daytona', 'platinum', 'e2b', 'local']);
     expect(new Set(SANDBOX_TEMPLATE_PROVIDERS)).toEqual(new Set(KNOWN_PROVIDERS));
   });
 
-  for (const name of ['daytona', 'platinum', 'e2b'] as const) {
+  for (const name of ['daytona', 'platinum', 'e2b', 'local'] as const) {
     test(`${name}: runtime registry constructs a provider implementing the full contract`, () => {
       const provider = getProvider(name);
       expect(provider.name).toBe(name);
@@ -113,7 +114,7 @@ describe('sandbox provider parity across shared subsystems', () => {
     // Walks the prototype chain: these are classes, so the methods live on the
     // prototype and `Object.keys` on the instance would report [] for anything
     // and prove nothing.
-    const surface = (name: 'daytona' | 'platinum' | 'e2b', needle: string) => {
+    const surface = (name: 'daytona' | 'platinum' | 'e2b' | 'local', needle: string) => {
       const keys = new Set<string>();
       for (
         let o: object | null = getProvider(name) as unknown as object;
@@ -126,7 +127,7 @@ describe('sandbox provider parity across shared subsystems', () => {
     };
 
     // Positive control: the walk really does see prototype methods.
-    for (const name of ['daytona', 'platinum', 'e2b'] as const) {
+    for (const name of ['daytona', 'platinum', 'e2b', 'local'] as const) {
       expect(surface(name, 'resolveingress')).toEqual(['resolveIngress']);
       expect(surface(name, 'networkboundary')).toEqual([]);
     }
