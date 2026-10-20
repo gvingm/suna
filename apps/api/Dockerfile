@@ -205,7 +205,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # through that client (the API container talks to the host's socket). Install
 # the static client — no daemon needed, we only ever talk to the host's.
 ARG DOCKER_CLI_VERSION=27.5.1
-RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" -o /tmp/docker.tgz \
+RUN bun -e "const r = await fetch('https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz'); if (!r.ok) { console.error('download failed', r.status); process.exit(1); } await Bun.write('/tmp/docker.tgz', await r.arrayBuffer())" \
     && tar -xzf /tmp/docker.tgz -C /tmp \
     && mv /tmp/docker/docker /usr/local/bin/docker \
     && chmod 0755 /usr/local/bin/docker \
